@@ -13,24 +13,24 @@ set(TEST_SOURCE_LIST
         )
 
 include_directories(${CGREEN_PUBLIC_INCLUDE_DIRS} ${PROJECT_BINARY_DIR})
-add_executable(template2_test
-        ${TEST_SOURCE_LIST} ${TEST_HEADER_LIST} ${COMMON_SOURCE_LIST} ${PROG1_SOURCE_LIST} ${PROG2_SOURCE_LIST} ${HEADER_LIST})
+add_executable(udp_tester_test
+        ${TEST_SOURCE_LIST} ${TEST_HEADER_LIST} ${COMMON_SOURCE_LIST} ${CLIENT_SOURCE_LIST} ${SERVER_SOURCE_LIST} ${HEADER_LIST})
 
-target_compile_features(template2_test PRIVATE c_std_11)
-target_compile_options(template2_test PRIVATE -g)
-target_compile_options(template2_test PRIVATE -fstack-protector-all -ftrapv)
-target_compile_options(template2_test PRIVATE -Wpedantic -Wall -Wextra)
-target_compile_options(template2_test PRIVATE -Wdouble-promotion -Wformat-nonliteral -Wformat-security -Wformat-y2k -Wnull-dereference -Winit-self -Wmissing-include-dirs -Wswitch-default -Wswitch-enum -Wunused-local-typedefs -Wstrict-overflow=5 -Wmissing-noreturn -Walloca -Wfloat-equal -Wdeclaration-after-statement -Wshadow -Wpointer-arith -Wabsolute-value -Wundef -Wexpansion-to-defined -Wunused-macros -Wno-endif-labels -Wbad-function-cast -Wcast-qual -Wcast-align -Wwrite-strings -Wconversion -Wdangling-else -Wdate-time -Wempty-body -Wsign-conversion -Wfloat-conversion -Waggregate-return -Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes -Wmissing-declarations -Wredundant-decls -Wnested-externs -Winline -Winvalid-pch -Wlong-long -Wvariadic-macros -Wdisabled-optimization -Wstack-protector -Woverlength-strings)
+target_compile_features(udp_tester_test PRIVATE c_std_11)
+target_compile_options(udp_tester_test PRIVATE -g)
+target_compile_options(udp_tester_test PRIVATE -fstack-protector-all -ftrapv)
+target_compile_options(udp_tester_test PRIVATE -Wpedantic -Wall -Wextra)
+target_compile_options(udp_tester_test PRIVATE -Wdouble-promotion -Wformat-nonliteral -Wformat-security -Wformat-y2k -Wnull-dereference -Winit-self -Wmissing-include-dirs -Wswitch-default -Wswitch-enum -Wunused-local-typedefs -Wstrict-overflow=5 -Wmissing-noreturn -Walloca -Wfloat-equal -Wdeclaration-after-statement -Wshadow -Wpointer-arith -Wabsolute-value -Wundef -Wexpansion-to-defined -Wunused-macros -Wno-endif-labels -Wbad-function-cast -Wcast-qual -Wcast-align -Wwrite-strings -Wconversion -Wdangling-else -Wdate-time -Wempty-body -Wsign-conversion -Wfloat-conversion -Waggregate-return -Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes -Wmissing-declarations -Wredundant-decls -Wnested-externs -Winline -Winvalid-pch -Wlong-long -Wvariadic-macros -Wdisabled-optimization -Wstack-protector -Woverlength-strings)
 
-target_include_directories(template2_test PRIVATE ../include)
-target_include_directories(template2_test PRIVATE /usr/include)
-target_include_directories(template2_test PRIVATE /usr/local/include)
+target_include_directories(udp_tester_test PRIVATE ../include)
+target_include_directories(udp_tester_test PRIVATE /usr/include)
+target_include_directories(udp_tester_test PRIVATE /usr/local/include)
 
 find_library(LIBCGREEN cgreen REQUIRED)
 find_library(LIBDC_ERROR dc_error REQUIRED)
 find_library(LIBDC_POSIX dc_posix REQUIRED)
-target_link_libraries(template2_test PRIVATE ${LIBCGREEN})
-target_link_libraries(template2_test PRIVATE ${LIBDC_ERROR})
-target_link_libraries(template2_test PRIVATE ${LIBDC_POSIX})
+target_link_libraries(udp_tester_test PRIVATE ${LIBCGREEN})
+target_link_libraries(udp_tester_test PRIVATE ${LIBDC_ERROR})
+target_link_libraries(udp_tester_test PRIVATE ${LIBDC_POSIX})
 
-add_test(NAME template2_test COMMAND template2_test)
+add_test(NAME udp_tester_test COMMAND udp_tester_test)

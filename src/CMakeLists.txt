@@ -10,32 +10,32 @@ IF (LINT)
 ENDIF ()
 
 # Make an executable
-add_executable(prog1 ${COMMON_SOURCE_LIST}  ${PROG1_SOURCE_LIST} ${PROG1_MAIN_SOURCE} ${HEADER_LIST})
-add_executable(prog2 ${COMMON_SOURCE_LIST}  ${PROG2_SOURCE_LIST} ${PROG2_MAIN_SOURCE} ${HEADER_LIST})
+add_executable(client ${COMMON_SOURCE_LIST}  ${CLIENT_SOURCE_LIST} ${CLIENT_MAIN_SOURCE} ${HEADER_LIST})
+add_executable(server ${COMMON_SOURCE_LIST}  ${SERVER_SOURCE_LIST} ${SERVER_MAIN_SOURCE} ${HEADER_LIST})
 
 # We need this directory, and users of our library will need it too
-target_include_directories(prog1 PRIVATE ../include)
-target_include_directories(prog1 PRIVATE /usr/include)
-target_include_directories(prog1 PRIVATE /usr/local/include)
-target_link_directories(prog1 PRIVATE /usr/lib)
-target_link_directories(prog1 PRIVATE /usr/local/lib)
-target_include_directories(prog2 PRIVATE ../include)
-target_include_directories(prog2 PRIVATE /usr/include)
-target_include_directories(prog2 PRIVATE /usr/local/include)
-target_link_directories(prog2 PRIVATE /usr/lib)
-target_link_directories(prog2 PRIVATE /usr/local/lib)
+target_include_directories(client PRIVATE ../include)
+target_include_directories(client PRIVATE /usr/include)
+target_include_directories(client PRIVATE /usr/local/include)
+target_link_directories(client PRIVATE /usr/lib)
+target_link_directories(client PRIVATE /usr/local/lib)
+target_include_directories(server PRIVATE ../include)
+target_include_directories(server PRIVATE /usr/include)
+target_include_directories(server PRIVATE /usr/local/include)
+target_link_directories(server PRIVATE /usr/lib)
+target_link_directories(server PRIVATE /usr/local/lib)
 
 # All users of this library will need at least C11
-target_compile_features(prog1 PUBLIC c_std_11)
-target_compile_options(prog1 PRIVATE -g)
-target_compile_options(prog1 PRIVATE -fstack-protector-all -ftrapv)
-target_compile_options(prog1 PRIVATE -Wpedantic -Wall -Wextra)
-target_compile_options(prog1 PRIVATE -Wdouble-promotion -Wformat-nonliteral -Wformat-security -Wformat-y2k -Wnull-dereference -Winit-self -Wmissing-include-dirs -Wswitch-default -Wswitch-enum -Wunused-local-typedefs -Wstrict-overflow=5 -Wmissing-noreturn -Walloca -Wfloat-equal -Wdeclaration-after-statement -Wshadow -Wpointer-arith -Wabsolute-value -Wundef -Wexpansion-to-defined -Wunused-macros -Wno-endif-labels -Wbad-function-cast -Wcast-qual -Wwrite-strings -Wconversion -Wdangling-else -Wdate-time -Wempty-body -Wsign-conversion -Wfloat-conversion -Waggregate-return -Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes -Wmissing-declarations -Wpacked -Wredundant-decls -Wnested-externs -Winline -Winvalid-pch -Wlong-long -Wvariadic-macros -Wdisabled-optimization -Wstack-protector -Woverlength-strings)
-target_compile_features(prog2 PUBLIC c_std_11)
-target_compile_options(prog2 PRIVATE -g)
-target_compile_options(prog2 PRIVATE -fstack-protector-all -ftrapv)
-target_compile_options(prog2 PRIVATE -Wpedantic -Wall -Wextra)
-target_compile_options(prog2 PRIVATE -Wdouble-promotion -Wformat-nonliteral -Wformat-security -Wformat-y2k -Wnull-dereference -Winit-self -Wmissing-include-dirs -Wswitch-default -Wswitch-enum -Wunused-local-typedefs -Wstrict-overflow=5 -Wmissing-noreturn -Walloca -Wfloat-equal -Wdeclaration-after-statement -Wshadow -Wpointer-arith -Wabsolute-value -Wundef -Wexpansion-to-defined -Wunused-macros -Wno-endif-labels -Wbad-function-cast -Wcast-qual -Wwrite-strings -Wconversion -Wdangling-else -Wdate-time -Wempty-body -Wsign-conversion -Wfloat-conversion -Waggregate-return -Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes -Wmissing-declarations -Wpacked -Wredundant-decls -Wnested-externs -Winline -Winvalid-pch -Wlong-long -Wvariadic-macros -Wdisabled-optimization -Wstack-protector -Woverlength-strings)
+target_compile_features(client PUBLIC c_std_11)
+target_compile_options(client PRIVATE -g)
+target_compile_options(client PRIVATE -fstack-protector-all -ftrapv)
+target_compile_options(client PRIVATE -Wpedantic -Wall -Wextra)
+target_compile_options(client PRIVATE -Wdouble-promotion -Wformat-nonliteral -Wformat-security -Wformat-y2k -Wnull-dereference -Winit-self -Wmissing-include-dirs -Wswitch-default -Wswitch-enum -Wunused-local-typedefs -Wstrict-overflow=5 -Wmissing-noreturn -Walloca -Wfloat-equal -Wdeclaration-after-statement -Wshadow -Wpointer-arith -Wabsolute-value -Wundef -Wexpansion-to-defined -Wunused-macros -Wno-endif-labels -Wbad-function-cast -Wcast-qual -Wwrite-strings -Wconversion -Wdangling-else -Wdate-time -Wempty-body -Wsign-conversion -Wfloat-conversion -Waggregate-return -Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes -Wmissing-declarations -Wpacked -Wredundant-decls -Wnested-externs -Winline -Winvalid-pch -Wlong-long -Wvariadic-macros -Wdisabled-optimization -Wstack-protector -Woverlength-strings)
+target_compile_features(server PUBLIC c_std_11)
+target_compile_options(server PRIVATE -g)
+target_compile_options(server PRIVATE -fstack-protector-all -ftrapv)
+target_compile_options(server PRIVATE -Wpedantic -Wall -Wextra)
+target_compile_options(server PRIVATE -Wdouble-promotion -Wformat-nonliteral -Wformat-security -Wformat-y2k -Wnull-dereference -Winit-self -Wmissing-include-dirs -Wswitch-default -Wswitch-enum -Wunused-local-typedefs -Wstrict-overflow=5 -Wmissing-noreturn -Walloca -Wfloat-equal -Wdeclaration-after-statement -Wshadow -Wpointer-arith -Wabsolute-value -Wundef -Wexpansion-to-defined -Wunused-macros -Wno-endif-labels -Wbad-function-cast -Wcast-qual -Wwrite-strings -Wconversion -Wdangling-else -Wdate-time -Wempty-body -Wsign-conversion -Wfloat-conversion -Waggregate-return -Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes -Wmissing-declarations -Wpacked -Wredundant-decls -Wnested-externs -Winline -Winvalid-pch -Wlong-long -Wvariadic-macros -Wdisabled-optimization -Wstack-protector -Woverlength-strings)
 
 find_library(LIBM m REQUIRED)
 find_library(LIBSOCKET socket)
@@ -44,23 +44,23 @@ find_library(LIBDC_POSIX dc_posix REQUIRED)
 find_library(LIBDC_UTIL dc_util REQUIRED)
 find_library(LIBDC_FSM dc_fsm REQUIRED)
 find_library(LIBDC_APPLICATION dc_application REQUIRED)
-target_link_libraries(prog1 PRIVATE ${LIBM})
-target_link_libraries(prog1 PRIVATE ${LIBDC_ERROR})
-target_link_libraries(prog1 PRIVATE ${LIBDC_POSIX})
-target_link_libraries(prog1 PRIVATE ${LIBDC_UTIL})
-target_link_libraries(prog1 PRIVATE ${LIBDC_FSM})
-target_link_libraries(prog1 PRIVATE ${LIBDC_APPLICATION})
-target_link_libraries(prog2 PRIVATE ${LIBM})
-target_link_libraries(prog2 PRIVATE ${LIBDC_ERROR})
-target_link_libraries(prog2 PRIVATE ${LIBDC_POSIX})
-target_link_libraries(prog2 PRIVATE ${LIBDC_UTIL})
-target_link_libraries(prog2 PRIVATE ${LIBDC_FSM})
-target_link_libraries(prog2 PRIVATE ${LIBDC_APPLICATION})
+target_link_libraries(client PRIVATE ${LIBM})
+target_link_libraries(client PRIVATE ${LIBDC_ERROR})
+target_link_libraries(client PRIVATE ${LIBDC_POSIX})
+target_link_libraries(client PRIVATE ${LIBDC_UTIL})
+target_link_libraries(client PRIVATE ${LIBDC_FSM})
+target_link_libraries(client PRIVATE ${LIBDC_APPLICATION})
+target_link_libraries(server PRIVATE ${LIBM})
+target_link_libraries(server PRIVATE ${LIBDC_ERROR})
+target_link_libraries(server PRIVATE ${LIBDC_POSIX})
+target_link_libraries(server PRIVATE ${LIBDC_UTIL})
+target_link_libraries(server PRIVATE ${LIBDC_FSM})
+target_link_libraries(server PRIVATE ${LIBDC_APPLICATION})
 
-set_target_properties(prog1 PROPERTIES OUTPUT_NAME "prog1")
-set_target_properties(prog2 PROPERTIES OUTPUT_NAME "prog2")
-install(TARGETS prog1 DESTINATION bin)
-install(TARGETS prog2 DESTINATION bin)
+set_target_properties(client PROPERTIES OUTPUT_NAME "client")
+set_target_properties(server PROPERTIES OUTPUT_NAME "server")
+install(TARGETS client DESTINATION bin)
+install(TARGETS server DESTINATION bin)
 
 # IDEs should put the headers in a nice place
 source_group(
@@ -75,8 +75,8 @@ add_custom_target(
         -i
         ${HEADER_LIST}
         ${COMMON_SOURCE_LIST}
-        ${PROG1_SOURCE_LIST}
-        ${PROG2_SOURCE_LIST}
-        ${PROG1_MAIN_SOURCE}
-        ${PROG2_MAIN_SOURCE}
+        ${CLIENT_SOURCE_LIST}
+        ${SERVER_SOURCE_LIST}
+        ${CLIENT_MAIN_SOURCE}
+        ${SERVER_MAIN_SOURCE}
 )

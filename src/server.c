@@ -130,7 +130,7 @@ static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_a
 
     app_settings = (struct application_settings *)settings;
     message = dc_setting_string_get(env, app_settings->message);
-    printf("prog2 says \"%s\"\n", message);
+    printf("server says \"%s\"\n", message);
 
     return EXIT_SUCCESS;
 }
