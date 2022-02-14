@@ -1,5 +1,5 @@
-#ifndef MORSE_COMMON_H
-#define MORSE_COMMON_H
+#ifndef UDP_TESTER_COMMON_H
+#define UDP_TESTER_COMMON_H
 
 /*
  * This file is part of dc_dump.
@@ -26,4 +26,4 @@
  */
 int display(const char *str);
 
-#endif // TEMPLATE_COMMON_H
+#endif // UDP_TESTER_COMMON_H
