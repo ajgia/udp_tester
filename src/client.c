@@ -1,12 +1,13 @@
+#include <getopt.h>
+
 #include <dc_application/command_line.h>
 #include <dc_application/config.h>
 #include <dc_application/options.h>
+#include <dc_fsm/fsm.h>
 #include <dc_posix/dc_stdlib.h>
 #include <dc_posix/dc_stdio.h>
 #include <dc_posix/dc_string.h>
 #include <dc_posix/dc_signal.h>
-
-#include <getopt.h>
 
 #include "common.h"
 
@@ -20,6 +21,17 @@ struct application_settings
     struct dc_setting_uint16 *server_port;
     struct dc_setting_uint16 *size_packet;
     struct dc_setting_uint16 *delay;
+};
+
+enum application_states
+{
+    START_THREADS = DC_FSM_USER_START,
+    OPEN_TCP_CONNECTION,
+    SEND_INITIAL_MESSAGE,
+    WAIT_FOR_START,
+    DO_TRAN,
+    SEND_CLOSING_MESSAGE,
+    EXIT
 };
 
 /**
@@ -39,6 +51,29 @@ static void trace_reporter(const struct dc_posix_env *env,
                            const char *function_name,
                            size_t line_number);
 static void signal_handler(int signnum);
+static void will_change_state(const struct dc_posix_env *env,
+                              struct dc_error *err,
+                              const struct dc_fsm_info *info,
+                              int from_state_id,
+                              int to_state_id);
+static void did_change_state(const struct dc_posix_env *env,
+                             struct dc_error *err,
+                             const struct dc_fsm_info *info,
+                             int from_state_id,
+                             int to_state_id,
+                             int next_id);
+static void bad_change_state(const struct dc_posix_env *env,
+                             struct dc_error *err,
+                             const struct dc_fsm_info *info,
+                             int from_state_id,
+                             int to_state_id);
+static int start_threads(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static int send_initial_message(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static int do_tran(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static int send_closing_message(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static int do_exit(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 
 
 int main(int argc, char *argv[])
@@ -207,14 +242,40 @@ static int destroy_settings(const struct dc_posix_env *env,
 static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_application_settings *settings)
 {
     struct application_settings *app_settings;
+    struct dc_fsm_info *fsm_info;
+    int ret_val;
 
     DC_TRACE(env);
 
     app_settings = (struct application_settings *)settings;
 
-    printf("client says hi\n");
+    static struct dc_fsm_transition transitions[] = {
+            {DC_FSM_INIT, START_THREADS, start_threads},
+            {START_THREADS, OPEN_TCP_CONNECTION, open_tcp_connection},
+            {OPEN_TCP_CONNECTION, SEND_INITIAL_MESSAGE, send_initial_message},
+            {SEND_INITIAL_MESSAGE, WAIT_FOR_START, wait_for_start},
+            {WAIT_FOR_START, DO_TRAN, do_tran},
+            {DO_TRAN, SEND_CLOSING_MESSAGE, send_closing_message},
+            {SEND_CLOSING_MESSAGE, EXIT, do_exit},
+            {EXIT, DC_FSM_EXIT, NULL}
+    };
 
-    return EXIT_SUCCESS;
+    ret_val = EXIT_SUCCESS;
+    fsm_info = dc_fsm_info_create(env, err, "udp_tester_client");
+//    dc_fsm_info_set_will_change_state(fsm_info, will_change_state);
+    dc_fsm_info_set_did_change_state(fsm_info, did_change_state);
+    dc_fsm_info_set_bad_change_state(fsm_info, bad_change_state);
+
+    if(dc_error_has_no_error(err))
+    {
+        int from_state;
+        int to_state;
+
+        ret_val = dc_fsm_run(env, err, fsm_info, &from_state, &to_state, settings, transitions);
+        dc_fsm_info_destroy(env, &fsm_info);
+    }
+
+    return ret_val;
 }
 
 void signal_handler(__attribute__((unused)) int signnum)
@@ -235,4 +296,61 @@ static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *en
                            size_t line_number)
 {
     fprintf(stdout, "TRACE: %s : %s : @ %zu\n", file_name, function_name, line_number);
+}
+
+static int start_threads(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+{
+    return OPEN_TCP_CONNECTION;
+}
+static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+{
+    return SEND_INITIAL_MESSAGE;
+}
+static int send_initial_message(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+{
+    return WAIT_FOR_START;
+}
+static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+{
+    return DO_TRAN;
+}
+static int do_tran(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+{
+    return SEND_CLOSING_MESSAGE;
+}
+static int send_closing_message(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+{
+    return EXIT;
+}
+static int do_exit(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+{
+    return DC_FSM_EXIT;
+}
+
+static void will_change_state(const struct dc_posix_env *env,
+                              struct dc_error *err,
+                              const struct dc_fsm_info *info,
+                              int from_state_id,
+                              int to_state_id)
+{
+    printf("%s: will change %d -> %d\n", dc_fsm_info_get_name(info), from_state_id, to_state_id);
+}
+
+static void did_change_state(const struct dc_posix_env *env,
+                             struct dc_error *err,
+                             const struct dc_fsm_info *info,
+                             int from_state_id,
+                             int to_state_id,
+                             int next_id)
+{
+    printf("%s: did change %d -> %d moving to %d\n", dc_fsm_info_get_name(info), from_state_id, to_state_id, next_id);
+}
+
+static void bad_change_state(const struct dc_posix_env *env,
+                             struct dc_error *err,
+                             const struct dc_fsm_info *info,
+                             int from_state_id,
+                             int to_state_id)
+{
+    printf("%s: bad change %d -> %d\n", dc_fsm_info_get_name(info), from_state_id, to_state_id);
 }
