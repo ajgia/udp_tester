@@ -18,6 +18,9 @@
  *  along with dc_dump.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+
+#define DEFAULT_UDP_TESTER_PORT 4981
+
 /**
  * A function to be documented.
  *
