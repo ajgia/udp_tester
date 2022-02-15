@@ -5,17 +5,32 @@
 #include <dc_application/options.h>
 #include <dc_posix/dc_stdlib.h>
 #include <dc_posix/dc_string.h>
+
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "common.h"
 
+/**
+The client must take parameters for:
+(optional) The time to start at (eg. 15:23 would mean 3:23 pm)
+(optional) # of packets to send
+Server IP
+        (optional) Server port (eg. 8081)
+(optional) size of each packet
+        (optional) delay between packets
+**/
 struct application_settings
 {
     struct dc_opt_settings opts;
-    struct dc_setting_string *message;
+    struct dc_setting_string *time;
+    struct dc_setting_uint16 *num_packets;
+    struct dc_setting_string *server_ip;
+    struct dc_setting_uint16 *server_port;
+    struct dc_setting_uint16 *size_packet;
+    struct dc_setting_uint16 *delay;
 };
-
 
 
 static struct dc_application_settings *create_settings(const struct dc_posix_env *env, struct dc_error *err);
@@ -44,8 +59,8 @@ int main(int argc, char *argv[])
     tracer = NULL;
     dc_error_init(&err, reporter);
     dc_posix_env_init(&env, tracer);
-    info = dc_application_info_create(&env, &err, "Settings Application");
-    ret_val = dc_application_run(&env, &err, info, create_settings, destroy_settings, run, dc_default_create_lifecycle, dc_default_destroy_lifecycle, NULL, argc, argv);
+    info = dc_application_info_create(&env, &err, "UDP Tester Client Application");
+    ret_val = dc_application_run(&env, &err, info, create_settings, destroy_settings, run, dc_default_create_lifecycle, dc_default_destroy_lifecycle, "~./udp_tester_client.conf", argc, argv);
     dc_application_info_destroy(&env, &info);
     dc_error_reset(&err);
 
@@ -55,6 +70,11 @@ int main(int argc, char *argv[])
 static struct dc_application_settings *create_settings(const struct dc_posix_env *env, struct dc_error *err)
 {
     struct application_settings *settings;
+    static const char *default_time = "0";
+    static const uint16_t default_packet_num = 5;
+    static const uint16_t default_server_port = DEFAULT_UDP_TESTER_PORT;
+    static const uint16_t default_packet_size = 10;
+    static const uint16_t default_delay = 200;
 
     DC_TRACE(env);
     settings = dc_malloc(env, err, sizeof(struct application_settings));
@@ -65,7 +85,12 @@ static struct dc_application_settings *create_settings(const struct dc_posix_env
     }
 
     settings->opts.parent.config_path = dc_setting_path_create(env, err);
-    settings->message = dc_setting_string_create(env, err);
+    settings->time = dc_setting_string_create(env, err);
+    settings->num_packets = dc_setting_uint16_create(env, err);
+    settings->server_ip = dc_setting_string_create(env, err);
+    settings->server_port = dc_setting_uint16_create(env, err);
+    settings->size_packet = dc_setting_uint16_create(env, err);
+    settings->delay = dc_setting_uint16_create(env, err);
 
     struct options opts[] = {
             {(struct dc_setting *)settings->opts.parent.config_path,
@@ -78,16 +103,16 @@ static struct dc_application_settings *create_settings(const struct dc_posix_env
                     NULL,
                     dc_string_from_config,
                     NULL},
-            {(struct dc_setting *)settings->message,
+            {(struct dc_setting *)settings->time,
                     dc_options_set_string,
-                    "message",
+                    "time",
                     required_argument,
-                    'm',
-                    "MESSAGE",
+                    't',
+                    "TIME",
                     dc_string_from_string,
-                    "message",
+                    "time",
                     dc_string_from_config,
-                    "Hello, Default World!"},
+                    default_time},
     };
 
     // note the trick here - we use calloc and add 1 to ensure the last line is all 0/NULL

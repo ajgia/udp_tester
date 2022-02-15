@@ -113,11 +113,7 @@ static struct dc_application_settings *create_settings(const struct dc_posix_env
 {
     struct application_settings *settings;
 
-    static const bool default_verbose = false;
-    static const char *default_hostname = "localhost";
-    static const char *default_ip = "IPv4";
     static const uint16_t default_port = DEFAULT_UDP_TESTER_PORT;
-    static const bool default_reuse = false;
 
     DC_TRACE(env);
     settings = dc_malloc(env, err, sizeof(struct application_settings));
@@ -373,6 +369,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
     else
     {
         echo(env, err, *client_socket_fd);
+        // TODO: start udp socket on client?
     }
 
     return ret_val;
