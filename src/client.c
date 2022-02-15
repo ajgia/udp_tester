@@ -107,10 +107,10 @@ int main(int argc, char *argv[])
 static struct dc_application_settings *create_settings(const struct dc_posix_env *env, struct dc_error *err)
 {
     struct application_settings *settings;
-    static const uint16_t default_packet_num = 5;
+    static const uint16_t default_packet_num = 100;
     static const uint16_t default_server_port = DEFAULT_UDP_TESTER_PORT;
-    static const uint16_t default_packet_size = 10;
-    static const uint16_t default_delay = 200;
+    static const uint16_t default_packet_size = 100;
+    static const uint16_t default_delay = 50;
 
     DC_TRACE(env);
     settings = dc_malloc(env, err, sizeof(struct application_settings));
