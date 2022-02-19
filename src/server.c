@@ -26,6 +26,7 @@
 #include <dc_util/types.h>
 
 #include <getopt.h>
+#include <arpa/inet.h>
 
 #include "common.h"
 
@@ -33,8 +34,11 @@ struct application_settings
 {
     struct dc_opt_settings opts;
     struct dc_setting_uint16 *port;
-    struct addrinfo *address;
-    int server_socket_fd;
+    struct addrinfo *tcp_address;
+    struct addrinfo *udp_address;
+    int tcp_server_socket_fd;
+    int udp_server_socket_fd;
+    struct sockaddr_in server_addr, client_addr;
 };
 
 
@@ -209,14 +213,10 @@ static void destroy_server_lifecycle(const struct dc_posix_env *env,
 
 static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_application_settings *settings)
 {
-    struct application_settings *app_settings;
-    const char *message;
     int ret_val;
     struct dc_server_info *info;
 
     DC_TRACE(env);
-
-    app_settings = (struct application_settings *)settings;
 
     info = dc_server_info_create(env, err, "udp_tester_server", NULL, settings);
 
@@ -258,8 +258,6 @@ static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *en
     fprintf(stdout, "TRACE: %s : %s : @ %zu\n", file_name, function_name, line_number);
 }
 
-
-
 static void do_create_settings(const struct dc_posix_env *env,
                                struct dc_error *err, void *arg)
 {
@@ -274,27 +272,30 @@ static void do_create_settings(const struct dc_posix_env *env,
     hostname = "localhost";
 
     dc_network_get_addresses(env, err, family, SOCK_STREAM, hostname,
-                             &app_settings->address);
+                             &app_settings->tcp_address);
+    dc_network_get_addresses(env, err, family, SOCK_DGRAM, hostname, &app_settings->udp_address);
 }
 
 static void do_create_socket(const struct dc_posix_env *env,
                              struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
-    int socket_fd;
+    int tcp_socket_fd;
+    int udp_socket_fd;
 
     DC_TRACE(env);
     app_settings = arg;
-    socket_fd = dc_network_create_socket(env, err, app_settings->address);
+    tcp_socket_fd = dc_network_create_socket(env, err, app_settings->tcp_address);
+    udp_socket_fd = dc_socket(env, err, AF_INET, SOCK_DGRAM, 0); // TODO: alternate protocol IPPROTO_UDP
 
     if (dc_error_has_no_error(err))
     {
-        app_settings = arg;
-        app_settings->server_socket_fd = socket_fd;
+        app_settings->tcp_server_socket_fd = tcp_socket_fd;
+        app_settings->udp_server_socket_fd = udp_socket_fd;
     }
     else
     {
-        socket_fd = -1;
+        tcp_socket_fd = -1;
     }
 }
 
@@ -307,7 +308,7 @@ static void do_set_sockopts(const struct dc_posix_env *env,
     DC_TRACE(env);
     app_settings = arg;
     reuse_address = false;
-    dc_network_opt_ip_so_reuse_addr(env, err, app_settings->server_socket_fd,
+    dc_network_opt_ip_so_reuse_addr(env, err, app_settings->tcp_server_socket_fd,
                                     reuse_address);
 }
 
@@ -316,13 +317,25 @@ static void do_bind(const struct dc_posix_env *env, struct dc_error *err,
 {
     struct application_settings *app_settings;
     uint16_t port;
+    char *hostname;
 
     DC_TRACE(env);
     app_settings = arg;
     port = dc_setting_uint16_get(env, app_settings->port);
 
-    dc_network_bind(env, err, app_settings->server_socket_fd,
-                    app_settings->address->ai_addr, port);
+    dc_network_bind(env, err, app_settings->tcp_server_socket_fd,
+                    app_settings->tcp_address->ai_addr, port);
+
+    app_settings->server_addr.sin_family = AF_INET;
+    app_settings->server_addr.sin_port = port;
+    app_settings->server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    dc_network_bind(env, err, app_settings->udp_server_socket_fd,
+                    (struct sockaddr *)&app_settings->server_addr, port);
+    if (dc_error_has_error(err))
+    {
+        printf("UDP Couldn't bind to the port\n");
+    }
+
 }
 
 static void do_listen(const struct dc_posix_env *env, struct dc_error *err,
@@ -334,7 +347,7 @@ static void do_listen(const struct dc_posix_env *env, struct dc_error *err,
     DC_TRACE(env);
     app_settings = arg;
     backlog = 5;
-    dc_network_listen(env, err, app_settings->server_socket_fd, backlog);
+    dc_network_listen(env, err, app_settings->tcp_server_socket_fd, backlog);
 }
 
 static void do_setup(const struct dc_posix_env *env,
@@ -349,13 +362,15 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
 {
     struct application_settings *app_settings;
     bool ret_val;
+    size_t buf_size = 500;
+    char message[buf_size];
 
     DC_TRACE(env);
     app_settings = arg;
     ret_val = false;
 
     printf("accepting\n");
-    *client_socket_fd = dc_network_accept(env, err, app_settings->server_socket_fd);
+    *client_socket_fd = dc_network_accept(env, err, app_settings->tcp_server_socket_fd);
     printf("accepted\n");
 
     if (dc_error_has_error(err))
@@ -368,7 +383,9 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
     }
     else
     {
-        echo(env, err, *client_socket_fd);
+//        echo(env, err, *client_socket_fd);
+        dc_recvfrom(env, err, app_settings->udp_server_socket_fd, message, buf_size, 0, NULL, NULL);
+        printf("%s\n", message);
         // TODO: start udp socket on client?
     }
 
@@ -417,5 +434,5 @@ static void do_destroy_settings(const struct dc_posix_env *env,
 
     DC_TRACE(env);
     app_settings = arg;
-    dc_freeaddrinfo(env, app_settings->address);
+    dc_freeaddrinfo(env, app_settings->tcp_address);
 }
