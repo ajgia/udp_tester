@@ -43,6 +43,7 @@ struct client
     struct addrinfo *tcp_result;
     struct addrinfo udp_hints;
     struct addrinfo *udp_result;
+    struct sockaddr *server_addr;
     int tcp_socket_fd;
     int udp_socket_fd;
 };
@@ -432,52 +433,24 @@ static int setup_udp(const struct dc_posix_env *env, struct dc_error *err, void 
     client = (struct client *) arg;
 
     hostname = dc_setting_string_get(env, client->app_settings->server_ip);
-    dc_memset(env, &(client->udp_hints), 0, sizeof(client->udp_hints));
-    client->udp_hints.ai_family   = PF_INET;    // PF_INET6;
-    client->udp_hints.ai_socktype = SOCK_DGRAM;
-    dc_getaddrinfo(env, err, hostname, NULL, &client->udp_hints, &client->udp_result);
+
 
     if (dc_error_has_no_error(err))
     {
         client->udp_socket_fd = dc_socket(
-                env, err, client->udp_result->ai_family, client->udp_result->ai_socktype, client->udp_result->ai_protocol);
+                env, err, AF_INET, SOCK_DGRAM, 0);
 
         if(dc_error_has_no_error(err))
         {
-            struct sockaddr *sockaddr;
-            in_port_t port;
-            in_port_t converted_port;
-            socklen_t sockaddr_size;
+            struct sockaddr_in *sockaddr;
+            uint16_t port = dc_setting_uint16_get(env, client->app_settings->server_port);
 
-            sockaddr = client->udp_result->ai_addr;
-            port = dc_setting_uint16_get(env, client->app_settings->server_port);
-            converted_port = htons(port);
+            sockaddr = dc_calloc(env, err, 1, sizeof(struct sockaddr));
+            sockaddr->sin_family = AF_INET;
+            sockaddr->sin_port = htons(port);
+            sockaddr->sin_addr.s_addr = inet_addr(hostname);
 
-            if(sockaddr->sa_family == AF_INET)
-            {
-                struct sockaddr_in *addr_in;
-
-                addr_in = (struct sockaddr_in *)sockaddr;
-                addr_in->sin_port = converted_port;
-                sockaddr_size = sizeof(struct sockaddr_in);
-            }
-            else
-            {
-                if(sockaddr->sa_family == AF_INET6)
-                {
-                    struct sockaddr_in6 *addr_in;
-
-                    addr_in = (struct sockaddr_in6 *)sockaddr;
-                    addr_in->sin6_port = converted_port;
-                    sockaddr_size = sizeof(struct sockaddr_in6);
-                }
-                else
-                {
-                    DC_ERROR_RAISE_USER(err, "sockaddr->sa_family is invalid", -1);
-                    sockaddr_size = 0;
-                }
-            }
-            dc_connect(env, err, client->udp_socket_fd, sockaddr, sockaddr_size);
+            client->server_addr = (struct sockaddr *)sockaddr;
         }
     }
 
@@ -489,12 +462,12 @@ static int do_tran(const struct dc_posix_env *env, struct dc_error *err, void *a
     struct client *client;
 
     client = (struct client *) arg;
+
     setup_udp(env, err, arg);
 
-    dc_sendto(env, err, client->udp_socket_fd, "UDP", 3, 0, client->udp_result, sizeof(client->udp_result));
+    dc_sendto(env, err, client->udp_socket_fd, "www\0", 4, 0, client->server_addr, sizeof(*client->server_addr));
 
     dc_close(env, err, client->udp_socket_fd);
-    dc_freeaddrinfo(env, client->udp_result);
     return SEND_CLOSING_MESSAGE;
 }
 

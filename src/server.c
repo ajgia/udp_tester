@@ -26,6 +26,7 @@
 #include <dc_util/types.h>
 
 #include <getopt.h>
+#include <arpa/inet.h>
 
 #include "common.h"
 
@@ -37,6 +38,7 @@ struct application_settings
     struct addrinfo *udp_address;
     int tcp_server_socket_fd;
     int udp_server_socket_fd;
+    struct sockaddr_in server_addr, client_addr;
 };
 
 
@@ -315,6 +317,7 @@ static void do_bind(const struct dc_posix_env *env, struct dc_error *err,
 {
     struct application_settings *app_settings;
     uint16_t port;
+    char *hostname;
 
     DC_TRACE(env);
     app_settings = arg;
@@ -322,8 +325,17 @@ static void do_bind(const struct dc_posix_env *env, struct dc_error *err,
 
     dc_network_bind(env, err, app_settings->tcp_server_socket_fd,
                     app_settings->tcp_address->ai_addr, port);
+
+    app_settings->server_addr.sin_family = AF_INET;
+    app_settings->server_addr.sin_port = port;
+    app_settings->server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     dc_network_bind(env, err, app_settings->udp_server_socket_fd,
-                    app_settings->udp_address->ai_addr, port);
+                    (struct sockaddr *)&app_settings->server_addr, port);
+    if (dc_error_has_error(err))
+    {
+        printf("UDP Couldn't bind to the port\n");
+    }
+
 }
 
 static void do_listen(const struct dc_posix_env *env, struct dc_error *err,
@@ -371,7 +383,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
     }
     else
     {
-        echo(env, err, *client_socket_fd);
+//        echo(env, err, *client_socket_fd);
         dc_recvfrom(env, err, app_settings->udp_server_socket_fd, message, buf_size, 0, NULL, NULL);
         printf("%s\n", message);
         // TODO: start udp socket on client?
