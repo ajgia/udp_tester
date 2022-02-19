@@ -8,6 +8,19 @@
 #include <dc_posix/dc_stdio.h>
 #include <dc_posix/dc_string.h>
 #include <dc_posix/dc_signal.h>
+#include <dc_posix/sys/dc_socket.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <dc_posix/dc_netdb.h>
+#include <dc_posix/dc_unistd.h>
 
 #include "common.h"
 
@@ -23,15 +36,24 @@ struct application_settings
     struct dc_setting_uint16 *delay;
 };
 
+struct client
+{
+    struct application_settings *app_settings;
+    struct addrinfo hints;
+    struct addrinfo *result;
+    int tcp_socket_fd;
+    int udp_socket_fd;
+};
+
 enum application_states
 {
-    START_THREADS = DC_FSM_USER_START,
-    OPEN_TCP_CONNECTION,
-    SEND_INITIAL_MESSAGE,
-    WAIT_FOR_START,
-    DO_TRAN,
-    SEND_CLOSING_MESSAGE,
-    EXIT
+    START_THREADS = DC_FSM_USER_START,  // 2
+    OPEN_TCP_CONNECTION,                // 3
+    SEND_INITIAL_MESSAGE,               // 4
+    WAIT_FOR_START,                     // 5
+    DO_TRAN,                            // 6
+    SEND_CLOSING_MESSAGE,               // 7
+    EXIT                                // 8
 };
 
 /**
@@ -244,10 +266,12 @@ static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_a
     struct application_settings *app_settings;
     struct dc_fsm_info *fsm_info;
     int ret_val;
+    struct client client;
 
     DC_TRACE(env);
 
     app_settings = (struct application_settings *)settings;
+    client.app_settings = app_settings;
 
     static struct dc_fsm_transition transitions[] = {
             {DC_FSM_INIT, START_THREADS, start_threads},
@@ -271,7 +295,7 @@ static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_a
         int from_state;
         int to_state;
 
-        ret_val = dc_fsm_run(env, err, fsm_info, &from_state, &to_state, settings, transitions);
+        ret_val = dc_fsm_run(env, err, fsm_info, &from_state, &to_state, &client, transitions);
         dc_fsm_info_destroy(env, &fsm_info);
     }
 
@@ -300,26 +324,151 @@ static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *en
 
 static int start_threads(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
-    return OPEN_TCP_CONNECTION;
+    int ret_val;
+    ret_val = OPEN_TCP_CONNECTION;
+    return ret_val;
 }
 static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
+    struct client *client;
+    int next_state;
+    const char *hostname;
+    struct addrinfo hints;
+    struct addrinfo *result;
+
+    client = (struct client *)arg;
+
+    hostname = dc_setting_string_get(env, client->app_settings->server_ip);
+    dc_memset(env, &(client->hints), 0, sizeof(client->hints));
+    client->hints.ai_family   = AF_INET;    // PF_INET6;
+    client->hints.ai_socktype = SOCK_STREAM;
+    client->hints.ai_flags    = AI_CANONNAME;
+    dc_getaddrinfo(env, err, hostname, NULL, &(client->hints), &(client->result));
+
+    if(dc_error_has_no_error(err))
+    {
+        // create socket
+        client->tcp_socket_fd =
+                dc_socket(env, err, client->result->ai_family, client->result->ai_socktype, client->result->ai_protocol);
+
+        if(dc_error_has_no_error(err))
+        {
+            struct sockaddr *sockaddr;
+            in_port_t        port;
+            in_port_t        converted_port;
+            socklen_t        sockaddr_size;
+
+            sockaddr       = client->result->ai_addr;
+
+            port           = dc_setting_uint16_get(env, client->app_settings->server_port);
+            converted_port = htons(port);
+
+
+            if(sockaddr->sa_family == AF_INET)
+            {
+                struct sockaddr_in *addr_in;
+
+                addr_in           = (struct sockaddr_in *)sockaddr;
+                addr_in->sin_port = converted_port;
+                sockaddr_size     = sizeof(struct sockaddr_in);
+            }
+            else
+            {
+                if(sockaddr->sa_family == AF_INET6)
+                {
+                    struct sockaddr_in6 *addr_in;
+
+                    addr_in            = (struct sockaddr_in6 *)sockaddr;
+                    addr_in->sin6_port = converted_port;
+                    sockaddr_size      = sizeof(struct sockaddr_in6);
+                }
+                else
+                {
+                    DC_ERROR_RAISE_USER(err, "sockaddr->sa_family is invalid", -1);
+                    sockaddr_size = 0;
+                }
+            }
+
+            if(dc_error_has_no_error(err))
+            {
+                // bind address (port) to socket
+                dc_connect(env, err, client->tcp_socket_fd, sockaddr, sockaddr_size);
+                // go to next state
+                next_state = SEND_INITIAL_MESSAGE;
+                return next_state;
+            }
+        }
+    }
+
+
     return SEND_INITIAL_MESSAGE;
 }
 static int send_initial_message(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
+    struct client *client;
+    const char *time;
+    uint16_t num_packets;
+    uint16_t size_packets;
+    uint16_t delay;
+    const size_t max = 5000;
+    char buf[max];
+
+    client = (struct client *) arg;
+
+    time = dc_setting_string_get(env, client->app_settings->time);
+    num_packets = dc_setting_uint16_get(env, client->app_settings->num_packets);
+    size_packets = dc_setting_uint16_get(env, client->app_settings->size_packet);
+    delay = dc_setting_uint16_get(env, client->app_settings->delay);
+
+    // write message containing time, num packets, size of packets, and delay
+    snprintf(buf, max - 1, "%s %u %u %u ", time, num_packets, size_packets, delay);
+
+    dc_write(env, err, client->tcp_socket_fd, buf, dc_strlen(env, buf));
+
     return WAIT_FOR_START;
 }
 static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
+    struct client *client;
+
+    client = (struct client *) arg;
+
+    if (dc_setting_string_get(env, client->app_settings->time))
+    {
+        // wait
+    }
+
     return DO_TRAN;
 }
 static int do_tran(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
+    struct application_settings *app_settings;
+    const char *message;
+    bool verbose;
+    const char *hostname;
+    const char *ip_version;
+    in_port_t port;
+    int ret_val;
+    struct addrinfo hints;
+    struct addrinfo *result;
+    int family;
+    int sock_fd;
+    socklen_t size;
+    size_t message_length;
+    uint16_t converted_port;
+
+    app_settings = arg;
+
     return SEND_CLOSING_MESSAGE;
 }
 static int send_closing_message(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
+    struct client *client;
+
+    client = (struct client *) arg;
+
+    dc_write(env, err, client->tcp_socket_fd, "fin", 3);
+    dc_close(env, err, client->tcp_socket_fd);
     return EXIT;
 }
 static int do_exit(const struct dc_posix_env *env, struct dc_error *err, void *arg)
