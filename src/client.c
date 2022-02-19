@@ -39,8 +39,10 @@ struct application_settings
 struct client
 {
     struct application_settings *app_settings;
-    struct addrinfo hints;
-    struct addrinfo *result;
+    struct addrinfo tcp_hints;
+    struct addrinfo *tcp_result;
+    struct addrinfo udp_hints;
+    struct addrinfo *udp_result;
     int tcp_socket_fd;
     int udp_socket_fd;
 };
@@ -302,54 +304,33 @@ static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_a
     return ret_val;
 }
 
-void signal_handler(__attribute__((unused)) int signnum)
-{
-    printf("\nSIGNAL CAUGHT!\n");
-    exit_signal = 1;
-}
-
-static void error_reporter(const struct dc_error *err)
-{
-    fprintf(stderr, "ERROR: %s : %s : @ %zu : %d\n", err->file_name, err->function_name, err->line_number, 0);
-    fprintf(stderr, "ERROR: %s\n", err->message);
-}
-
-static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
-                           const char *file_name,
-                           const char *function_name,
-                           size_t line_number)
-{
-    fprintf(stdout, "TRACE: %s : %s : @ %zu\n", file_name, function_name, line_number);
-}
-
 static int start_threads(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     int ret_val;
     ret_val = OPEN_TCP_CONNECTION;
     return ret_val;
 }
+
 static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client;
     int next_state;
     const char *hostname;
-    struct addrinfo hints;
-    struct addrinfo *result;
 
     client = (struct client *)arg;
 
     hostname = dc_setting_string_get(env, client->app_settings->server_ip);
-    dc_memset(env, &(client->hints), 0, sizeof(client->hints));
-    client->hints.ai_family   = AF_INET;    // PF_INET6;
-    client->hints.ai_socktype = SOCK_STREAM;
-    client->hints.ai_flags    = AI_CANONNAME;
-    dc_getaddrinfo(env, err, hostname, NULL, &(client->hints), &(client->result));
+    dc_memset(env, &(client->tcp_hints), 0, sizeof(client->tcp_hints));
+    client->tcp_hints.ai_family   = AF_INET;    // PF_INET6;
+    client->tcp_hints.ai_socktype = SOCK_STREAM;
+    client->tcp_hints.ai_flags    = AI_CANONNAME;
+    dc_getaddrinfo(env, err, hostname, NULL, &(client->tcp_hints), &(client->tcp_result));
 
     if(dc_error_has_no_error(err))
     {
         // create socket
         client->tcp_socket_fd =
-                dc_socket(env, err, client->result->ai_family, client->result->ai_socktype, client->result->ai_protocol);
+                dc_socket(env, err, client->tcp_result->ai_family, client->tcp_result->ai_socktype, client->tcp_result->ai_protocol);
 
         if(dc_error_has_no_error(err))
         {
@@ -358,7 +339,7 @@ static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *
             in_port_t        converted_port;
             socklen_t        sockaddr_size;
 
-            sockaddr       = client->result->ai_addr;
+            sockaddr       = client->tcp_result->ai_addr;
 
             port           = dc_setting_uint16_get(env, client->app_settings->server_port);
             converted_port = htons(port);
@@ -391,7 +372,7 @@ static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *
 
             if(dc_error_has_no_error(err))
             {
-                // bind address (port) to socket
+                // bind tcp_address (port) to socket
                 dc_connect(env, err, client->tcp_socket_fd, sockaddr, sockaddr_size);
                 // go to next state
                 next_state = SEND_INITIAL_MESSAGE;
@@ -403,6 +384,7 @@ static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *
 
     return SEND_INITIAL_MESSAGE;
 }
+
 static int send_initial_message(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client;
@@ -427,6 +409,7 @@ static int send_initial_message(const struct dc_posix_env *env, struct dc_error 
 
     return WAIT_FOR_START;
 }
+
 static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client;
@@ -435,32 +418,86 @@ static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, 
 
     if (dc_setting_string_get(env, client->app_settings->time))
     {
-        // wait
+        // wait till time
     }
 
     return DO_TRAN;
 }
+
+static int setup_udp(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+{
+    struct client *client;
+    const char *hostname;
+
+    client = (struct client *) arg;
+
+    hostname = dc_setting_string_get(env, client->app_settings->server_ip);
+    dc_memset(env, &(client->udp_hints), 0, sizeof(client->udp_hints));
+    client->udp_hints.ai_family   = PF_INET;    // PF_INET6;
+    client->udp_hints.ai_socktype = SOCK_DGRAM;
+    dc_getaddrinfo(env, err, hostname, NULL, &client->udp_hints, &client->udp_result);
+
+    if (dc_error_has_no_error(err))
+    {
+        client->udp_socket_fd = dc_socket(
+                env, err, client->udp_result->ai_family, client->udp_result->ai_socktype, client->udp_result->ai_protocol);
+
+        if(dc_error_has_no_error(err))
+        {
+            struct sockaddr *sockaddr;
+            in_port_t port;
+            in_port_t converted_port;
+            socklen_t sockaddr_size;
+
+            sockaddr = client->udp_result->ai_addr;
+            port = dc_setting_uint16_get(env, client->app_settings->server_port);
+            converted_port = htons(port);
+
+            if(sockaddr->sa_family == AF_INET)
+            {
+                struct sockaddr_in *addr_in;
+
+                addr_in = (struct sockaddr_in *)sockaddr;
+                addr_in->sin_port = converted_port;
+                sockaddr_size = sizeof(struct sockaddr_in);
+            }
+            else
+            {
+                if(sockaddr->sa_family == AF_INET6)
+                {
+                    struct sockaddr_in6 *addr_in;
+
+                    addr_in = (struct sockaddr_in6 *)sockaddr;
+                    addr_in->sin6_port = converted_port;
+                    sockaddr_size = sizeof(struct sockaddr_in6);
+                }
+                else
+                {
+                    DC_ERROR_RAISE_USER(err, "sockaddr->sa_family is invalid", -1);
+                    sockaddr_size = 0;
+                }
+            }
+            dc_connect(env, err, client->udp_socket_fd, sockaddr, sockaddr_size);
+        }
+    }
+
+    return EXIT_SUCCESS;
+}
+
 static int do_tran(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
-    struct application_settings *app_settings;
-    const char *message;
-    bool verbose;
-    const char *hostname;
-    const char *ip_version;
-    in_port_t port;
-    int ret_val;
-    struct addrinfo hints;
-    struct addrinfo *result;
-    int family;
-    int sock_fd;
-    socklen_t size;
-    size_t message_length;
-    uint16_t converted_port;
+    struct client *client;
 
-    app_settings = arg;
+    client = (struct client *) arg;
+    setup_udp(env, err, arg);
 
+    dc_sendto(env, err, client->udp_socket_fd, "UDP", 3, 0, client->udp_result, sizeof(client->udp_result));
+
+    dc_close(env, err, client->udp_socket_fd);
+    dc_freeaddrinfo(env, client->udp_result);
     return SEND_CLOSING_MESSAGE;
 }
+
 static int send_closing_message(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client;
@@ -469,10 +506,13 @@ static int send_closing_message(const struct dc_posix_env *env, struct dc_error 
 
     dc_write(env, err, client->tcp_socket_fd, "fin", 3);
     dc_close(env, err, client->tcp_socket_fd);
+    dc_freeaddrinfo(env, client->tcp_result);
     return EXIT;
 }
+
 static int do_exit(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
+    // free allocated memory
     return DC_FSM_EXIT;
 }
 
@@ -502,4 +542,24 @@ static void bad_change_state(const struct dc_posix_env *env,
                              int to_state_id)
 {
     printf("%s: bad change %d -> %d\n", dc_fsm_info_get_name(info), from_state_id, to_state_id);
+}
+
+void signal_handler(__attribute__((unused)) int signnum)
+{
+    printf("\nSIGNAL CAUGHT!\n");
+    exit_signal = 1;
+}
+
+static void error_reporter(const struct dc_error *err)
+{
+    fprintf(stderr, "ERROR: %s : %s : @ %zu : %d\n", err->file_name, err->function_name, err->line_number, 0);
+    fprintf(stderr, "ERROR: %s\n", err->message);
+}
+
+static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
+                           const char *file_name,
+                           const char *function_name,
+                           size_t line_number)
+{
+    fprintf(stdout, "TRACE: %s : %s : @ %zu\n", file_name, function_name, line_number);
 }
