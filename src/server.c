@@ -383,10 +383,12 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
     }
     else
     {
-//        echo(env, err, *client_socket_fd);
-        dc_recvfrom(env, err, app_settings->udp_server_socket_fd, message, buf_size, 0, NULL, NULL);
-        printf("%s\n", message);
-        // TODO: start udp socket on client?
+        while (dc_recvfrom(env, err, app_settings->udp_server_socket_fd,
+                           message, buf_size, 0, NULL, NULL)
+         != 0)
+        {
+            printf("%s\n", message);
+        }
     }
 
     return ret_val;

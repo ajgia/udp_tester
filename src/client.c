@@ -21,6 +21,7 @@
 #include <netdb.h>
 #include <dc_posix/dc_netdb.h>
 #include <dc_posix/dc_unistd.h>
+#include <dc_posix/dc_time.h>
 
 #include "common.h"
 
@@ -99,6 +100,7 @@ static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, 
 static int do_tran(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 static int send_closing_message(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 static int do_exit(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static int setup_udp(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 
 
 int main(int argc, char *argv[])
@@ -416,6 +418,7 @@ static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, 
     struct client *client;
 
     client = (struct client *) arg;
+    setup_udp(env, err, arg);
 
     if (dc_setting_string_get(env, client->app_settings->time))
     {
@@ -433,7 +436,6 @@ static int setup_udp(const struct dc_posix_env *env, struct dc_error *err, void 
     client = (struct client *) arg;
 
     hostname = dc_setting_string_get(env, client->app_settings->server_ip);
-
 
     if (dc_error_has_no_error(err))
     {
@@ -460,14 +462,33 @@ static int setup_udp(const struct dc_posix_env *env, struct dc_error *err, void 
 static int do_tran(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client;
+    size_t i;
+    size_t num_packets;
+    size_t size_packet;
+    size_t delay_milliseconds;
+    struct timespec delay;
+
 
     client = (struct client *) arg;
 
-    setup_udp(env, err, arg);
+    num_packets = dc_setting_uint16_get(env, client->app_settings->num_packets);
+    size_packet = dc_setting_uint16_get(env, client->app_settings->size_packet);
+    delay_milliseconds = dc_setting_uint16_get(env, client->app_settings->delay);
+    delay.tv_nsec = (long)delay_milliseconds * 1000;
+    delay.tv_sec = 0;
 
-    dc_sendto(env, err, client->udp_socket_fd, "www\0", 4, 0, client->server_addr, sizeof(*client->server_addr));
+    char msg[size_packet];
 
-    dc_close(env, err, client->udp_socket_fd);
+    // write messages on delay
+    // message format: messageIDnum
+
+    for (i = 0; i < num_packets; ++i)
+    {
+        sprintf(msg, "%zu", i);
+        dc_sendto(env, err, client->udp_socket_fd, msg, size_packet, 0, client->server_addr, sizeof(*client->server_addr));
+        dc_nanosleep(env, err, &delay, NULL);
+    }
+
     return SEND_CLOSING_MESSAGE;
 }
 
@@ -478,14 +499,21 @@ static int send_closing_message(const struct dc_posix_env *env, struct dc_error 
     client = (struct client *) arg;
 
     dc_write(env, err, client->tcp_socket_fd, "fin", 3);
-    dc_close(env, err, client->tcp_socket_fd);
-    dc_freeaddrinfo(env, client->tcp_result);
     return EXIT;
 }
 
 static int do_exit(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
-    // free allocated memory
+    struct client *client;
+
+    client = (struct client *) arg;
+
+    dc_close(env, err, client->tcp_socket_fd);
+    dc_close(env, err, client->udp_socket_fd);
+
+    // TODO: free allocated memory
+    dc_freeaddrinfo(env, client->tcp_result);
+
     return DC_FSM_EXIT;
 }
 
