@@ -317,7 +317,6 @@ static void do_bind(const struct dc_posix_env *env, struct dc_error *err,
 {
     struct application_settings *app_settings;
     uint16_t port;
-    char *hostname;
 
     DC_TRACE(env);
     app_settings = arg;
@@ -325,6 +324,10 @@ static void do_bind(const struct dc_posix_env *env, struct dc_error *err,
 
     dc_network_bind(env, err, app_settings->tcp_server_socket_fd,
                     app_settings->tcp_address->ai_addr, port);
+    if (dc_error_has_error(err))
+    {
+        printf("TCP couldn't bind to the port\n");
+    }
 
     app_settings->server_addr.sin_family = AF_INET;
     app_settings->server_addr.sin_port = port;
@@ -383,14 +386,30 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
     }
     else
     {
-        while (dc_recvfrom(env, err, app_settings->udp_server_socket_fd,
-                           message, buf_size, 0, NULL, NULL)
-         != 0)
+//        dc_read(env, err, app_settings->tcp_server_socket_fd, message, buf_size);
+//        printf("%s\n", message);
+        // read initial tcp message and fill out a struct with its data
+        // read udp messages until receiving closing tcp message
+        // write to file when receiving each udp message
+
+        struct sockaddr client_addr;
+        socklen_t client_addr_len;
+        ssize_t nread;
+        int out_fd;
+        char s[100];
+
+        out_fd = dc_open(env, err, "./log.txt", DC_O_WRONLY | DC_O_TRUNC | DC_O_CREAT, 0777);
+
+        while ((nread = dc_recvfrom(env, err, app_settings->udp_server_socket_fd,
+                           message, buf_size, 0, &client_addr, &client_addr_len)
+                ) > 0 && dc_error_has_no_error(err) )
         {
-            printf("%s\n", message);
+            struct sockaddr_in *addr_in = (struct sockaddr_in *) &client_addr;
+
+            sprintf(s, "%s %s\n", message, inet_ntoa(addr_in->sin_addr));
+            dc_write(env, err, out_fd, s, strlen(s));
         }
     }
-
     return ret_val;
 }
 
