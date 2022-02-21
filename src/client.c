@@ -513,11 +513,11 @@ static int do_exit(const struct dc_posix_env *env, struct dc_error *err, void *a
 
     client = (struct client *) arg;
 
-    dc_close(env, err, client->tcp_socket_fd);
+//    dc_close(env, err, client->tcp_socket_fd);
     dc_close(env, err, client->udp_socket_fd);
 
     // TODO: free allocated memory
-    dc_freeaddrinfo(env, client->tcp_result);
+//    dc_freeaddrinfo(env, client->tcp_result);
 
     return DC_FSM_EXIT;
 }
