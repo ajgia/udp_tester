@@ -316,6 +316,7 @@ static int start_threads(const struct dc_posix_env *env, struct dc_error *err, v
 
 static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
+    /**
     struct client *client;
     int next_state;
     const char *hostname;
@@ -383,13 +384,15 @@ static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *
             }
         }
     }
-
+**/
 
     return SEND_INITIAL_MESSAGE;
 }
 
 static int send_initial_message(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
+
+    /**
     struct client *client;
     const char *time;
     uint16_t num_packets;
@@ -409,7 +412,7 @@ static int send_initial_message(const struct dc_posix_env *env, struct dc_error 
     snprintf(buf, max - 1, "%s %u %u %u ", time, num_packets, size_packets, delay);
 
     dc_write(env, err, client->tcp_socket_fd, buf, dc_strlen(env, buf));
-
+**/
     return WAIT_FOR_START;
 }
 
@@ -494,11 +497,13 @@ static int do_tran(const struct dc_posix_env *env, struct dc_error *err, void *a
 
 static int send_closing_message(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
+    /**
     struct client *client;
 
     client = (struct client *) arg;
 
     dc_write(env, err, client->tcp_socket_fd, "fin", 3);
+     **/
     return EXIT;
 }
 
