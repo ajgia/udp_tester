@@ -411,7 +411,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
         int out_fd;
         char s[100];
 
-        out_fd = dc_open(env, err, "./log.txt", DC_O_WRONLY | DC_O_APPEND | DC_O_CREAT, 0777);
+        out_fd = dc_open(env, err, "./log.csv", DC_O_WRONLY | DC_O_APPEND | DC_O_CREAT, 0777);
 
         while ((dc_recvfrom(env, err, app_settings->udp_server_socket_fd,
                            message, buf_size, 0, &client_addr, &client_addr_len)
@@ -421,7 +421,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
             char address[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &addr_in->sin_addr, address, sizeof(address));
             uint16_t port = htons (addr_in->sin_port);
-            sprintf(s, "%s %s %u\n", message, address, port);
+            sprintf(s, "%s,%s,%u\n", message, address, port);
 
             dc_write(env, err, out_fd, s, strlen(s));
             dc_write(env, err, fileno(stdout), s, strlen(s));

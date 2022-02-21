@@ -506,7 +506,7 @@ static int do_tran(const struct dc_posix_env *env, struct dc_error *err, void *a
 
     for (i = 1; i <= num_packets; ++i)
     {
-        sprintf(msg, "%zu %zu ", i, num_packets);
+        sprintf(msg, "%zu,%zu", i, num_packets);
         dc_sendto(env, err, client->udp_socket_fd, msg, size_packet, 0, client->server_addr, sizeof(*client->server_addr));
         dc_nanosleep(env, err, &delay, NULL);
     }
