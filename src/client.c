@@ -53,11 +53,12 @@ enum application_states
 {
     START_THREADS = DC_FSM_USER_START,  // 2
     OPEN_TCP_CONNECTION,                // 3
-    SEND_INITIAL_MESSAGE,               // 4
-    WAIT_FOR_START,                     // 5
-    DO_TRAN,                            // 6
-    SEND_CLOSING_MESSAGE,               // 7
-    EXIT                                // 8
+    OPEN_UDP_CONNECTION,                // 4
+    SEND_INITIAL_MESSAGE,               // 5
+    WAIT_FOR_START,                     // 6
+    DO_TRAN,                            // 7
+    SEND_CLOSING_MESSAGE,               // 8
+    EXIT                                // 9
 };
 
 /**
@@ -95,6 +96,7 @@ static void bad_change_state(const struct dc_posix_env *env,
                              int to_state_id);
 static int start_threads(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static int open_udp_connection(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 static int send_initial_message(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 static int do_tran(const struct dc_posix_env *env, struct dc_error *err, void *arg);
@@ -281,7 +283,8 @@ static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_a
     static struct dc_fsm_transition transitions[] = {
             {DC_FSM_INIT, START_THREADS, start_threads},
             {START_THREADS, OPEN_TCP_CONNECTION, open_tcp_connection},
-            {OPEN_TCP_CONNECTION, SEND_INITIAL_MESSAGE, send_initial_message},
+            {OPEN_TCP_CONNECTION, OPEN_UDP_CONNECTION, open_udp_connection},
+            {OPEN_UDP_CONNECTION, SEND_INITIAL_MESSAGE, send_initial_message},
             {SEND_INITIAL_MESSAGE, WAIT_FOR_START, wait_for_start},
             {WAIT_FOR_START, DO_TRAN, do_tran},
             {DO_TRAN, SEND_CLOSING_MESSAGE, send_closing_message},
@@ -316,7 +319,9 @@ static int start_threads(const struct dc_posix_env *env, struct dc_error *err, v
 
 static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
-    /**
+
+    return OPEN_UDP_CONNECTION;
+
     struct client *client;
     int next_state;
     const char *hostname;
@@ -384,15 +389,14 @@ static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *
             }
         }
     }
-**/
 
-    return SEND_INITIAL_MESSAGE;
+    return OPEN_UDP_CONNECTION;
 }
 
 static int send_initial_message(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
+    return WAIT_FOR_START;
 
-    /**
     struct client *client;
     const char *time;
     uint16_t num_packets;
@@ -412,7 +416,7 @@ static int send_initial_message(const struct dc_posix_env *env, struct dc_error 
     snprintf(buf, max - 1, "%s %u %u %u ", time, num_packets, size_packets, delay);
 
     dc_write(env, err, client->tcp_socket_fd, buf, dc_strlen(env, buf));
-**/
+
     return WAIT_FOR_START;
 }
 
@@ -421,7 +425,6 @@ static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, 
     struct client *client;
 
     client = (struct client *) arg;
-    setup_udp(env, err, arg);
 
     if (dc_setting_string_get(env, client->app_settings->time))
     {
@@ -431,7 +434,7 @@ static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, 
     return DO_TRAN;
 }
 
-static int setup_udp(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static int open_udp_connection(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client;
     const char *hostname;
@@ -459,7 +462,7 @@ static int setup_udp(const struct dc_posix_env *env, struct dc_error *err, void 
         }
     }
 
-    return EXIT_SUCCESS;
+    return SEND_INITIAL_MESSAGE;
 }
 
 static int do_tran(const struct dc_posix_env *env, struct dc_error *err, void *arg)
