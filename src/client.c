@@ -22,6 +22,7 @@
 #include <dc_posix/dc_netdb.h>
 #include <dc_posix/dc_unistd.h>
 #include <dc_posix/dc_time.h>
+#include <dc_network/common.h>
 
 #include "common.h"
 
@@ -438,28 +439,43 @@ static int open_udp_connection(const struct dc_posix_env *env, struct dc_error *
 {
     struct client *client;
     const char *hostname;
+    int socket_fd;
+    uint8_t family;
+    int sock_type;
+    uint16_t port;
 
     client = (struct client *) arg;
-
+    family = AF_INET;
+    sock_type = SOCK_DGRAM;
     hostname = dc_setting_string_get(env, client->app_settings->server_ip);
+    port = dc_setting_uint16_get(env, client->app_settings->server_port);
+
+    dc_network_get_addresses(env, err, family, sock_type, hostname,
+                             &client->udp_result);
+
+//    socket_fd = dc_network_create_socket(env, err, client->udp_result);
+    socket_fd = dc_socket(env, err, family, sock_type, 0);
 
     if (dc_error_has_no_error(err))
     {
-        client->udp_socket_fd = dc_socket(
-                env, err, AF_INET, SOCK_DGRAM, 0);
+        client->udp_socket_fd = socket_fd;
+    }
+    else
+    {
+        client->udp_socket_fd = -1;
+    }
 
-        if(dc_error_has_no_error(err))
-        {
-            struct sockaddr_in *sockaddr;
-            uint16_t port = dc_setting_uint16_get(env, client->app_settings->server_port);
 
-            sockaddr = dc_calloc(env, err, 1, sizeof(struct sockaddr));
-            sockaddr->sin_family = AF_INET;
-            sockaddr->sin_port = htons(port);
-            sockaddr->sin_addr.s_addr = inet_addr(hostname);
+    if(dc_error_has_no_error(err))
+    {
+        struct sockaddr_in *sockaddr;
 
-            client->server_addr = (struct sockaddr *)sockaddr;
-        }
+        sockaddr = dc_calloc(env, err, 1, sizeof(struct sockaddr));
+        sockaddr->sin_family = family;
+        sockaddr->sin_port = htons(port);
+        sockaddr->sin_addr.s_addr = inet_addr(hostname);
+
+        client->server_addr = (struct sockaddr *)sockaddr;
     }
 
     return SEND_INITIAL_MESSAGE;
