@@ -34,6 +34,7 @@ struct application_settings
 {
     struct dc_opt_settings opts;
     struct dc_setting_uint16 *port;
+    struct dc_setting_string *server_ip;
     struct addrinfo *tcp_address;
     struct addrinfo *udp_address;
     int tcp_server_socket_fd;
@@ -118,6 +119,7 @@ static struct dc_application_settings *create_settings(const struct dc_posix_env
     struct application_settings *settings;
 
     static const uint16_t default_port = DEFAULT_UDP_TESTER_PORT;
+    static const char *default_hostname = "localhost";
 
     DC_TRACE(env);
     settings = dc_malloc(env, err, sizeof(struct application_settings));
@@ -129,6 +131,7 @@ static struct dc_application_settings *create_settings(const struct dc_posix_env
 
     settings->opts.parent.config_path = dc_setting_path_create(env, err);
     settings->port = dc_setting_uint16_create(env, err);
+    settings->server_ip = dc_setting_string_create(env, err);
 
     struct options opts[] = {
             {(struct dc_setting *)settings->opts.parent.config_path,
@@ -151,6 +154,16 @@ static struct dc_application_settings *create_settings(const struct dc_posix_env
                     "port",
                     dc_uint16_from_config,
                     &default_port},
+            {(struct dc_setting *)settings->server_ip,
+                    dc_options_set_string,
+                    "ip",
+                    required_argument,
+                    'i',
+                    "IP",
+                    dc_string_from_string,
+                    "ip",
+                    dc_string_from_config,
+                    default_hostname},
     };
 
     // note the trick here - we use calloc and add 1 to ensure the last line is all 0/NULL
@@ -173,6 +186,7 @@ static int destroy_settings(const struct dc_posix_env *env,
     DC_TRACE(env);
     app_settings = (struct application_settings *)*psettings;
     dc_setting_uint16_destroy(env, &app_settings->port);
+    dc_setting_string_destroy(env, &app_settings->server_ip);
     dc_free(env, app_settings->opts.opts, app_settings->opts.opts_size);
     dc_free(env, *psettings, sizeof(struct application_settings));
 
@@ -269,7 +283,8 @@ static void do_create_settings(const struct dc_posix_env *env,
     app_settings = arg;
 
     family = AF_INET;
-    hostname = "localhost";
+    hostname = dc_setting_string_get(env, app_settings->server_ip);
+    printf("%s\n", hostname);
 
     dc_network_get_addresses(env, err, family, SOCK_STREAM, hostname,
                              &app_settings->tcp_address);
