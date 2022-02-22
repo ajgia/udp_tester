@@ -284,6 +284,13 @@ static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_a
     app_settings = (struct application_settings *)settings;
     client.app_settings = app_settings;
 
+    // check ip settings
+    if (dc_setting_string_get(env, client.app_settings->server_ip) == NULL)
+    {
+        fprintf(stderr, "Error: Server ip argument required. Use --i\n");
+        return -1;
+    }
+
     static struct dc_fsm_transition transitions[] = {
             {DC_FSM_INIT, START_THREADS, start_threads},
             {START_THREADS, OPEN_TCP_CONNECTION, open_tcp_connection},
