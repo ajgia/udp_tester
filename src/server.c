@@ -443,7 +443,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
         }
     }
 
-    printf("done");
+    printf("done\n");
     return ret_val;
 }
 
