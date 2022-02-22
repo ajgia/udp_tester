@@ -273,30 +273,41 @@ static void do_create_settings(const struct dc_posix_env *env,
 
     dc_network_get_addresses(env, err, family, SOCK_STREAM, hostname,
                              &app_settings->tcp_address);
-    dc_network_get_addresses(env, err, family, SOCK_DGRAM, hostname, &app_settings->udp_address);
+    dc_network_get_addresses(env, err, family, SOCK_DGRAM, hostname,
+                             &app_settings->udp_address);
 }
 
 static void do_create_socket(const struct dc_posix_env *env,
                              struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
+
     int tcp_socket_fd;
     int udp_socket_fd;
 
     DC_TRACE(env);
     app_settings = arg;
-    tcp_socket_fd = dc_network_create_socket(env, err, app_settings->tcp_address);
-    udp_socket_fd = dc_socket(env, err, AF_INET, SOCK_DGRAM, 0); // TODO: alternate protocol IPPROTO_UDP
 
+    tcp_socket_fd = dc_network_create_socket(env, err, app_settings->tcp_address);
     if (dc_error_has_no_error(err))
     {
         app_settings->tcp_server_socket_fd = tcp_socket_fd;
+    }
+    else
+    {
+        app_settings->tcp_server_socket_fd = -1;
+    }
+
+    udp_socket_fd = dc_network_create_socket(env, err, app_settings->udp_address);
+    if (dc_error_has_no_error(err))
+    {
         app_settings->udp_server_socket_fd = udp_socket_fd;
     }
     else
     {
-        tcp_socket_fd = -1;
+        app_settings->udp_server_socket_fd = -1;
     }
+
 }
 
 static void do_set_sockopts(const struct dc_posix_env *env,
@@ -308,7 +319,10 @@ static void do_set_sockopts(const struct dc_posix_env *env,
     DC_TRACE(env);
     app_settings = arg;
     reuse_address = false;
+
     dc_network_opt_ip_so_reuse_addr(env, err, app_settings->tcp_server_socket_fd,
+                                    reuse_address);
+    dc_network_opt_ip_so_reuse_addr(env, err, app_settings->udp_server_socket_fd,
                                     reuse_address);
 }
 
@@ -324,16 +338,14 @@ static void do_bind(const struct dc_posix_env *env, struct dc_error *err,
 
     dc_network_bind(env, err, app_settings->tcp_server_socket_fd,
                     app_settings->tcp_address->ai_addr, port);
+
     if (dc_error_has_error(err))
     {
         printf("TCP couldn't bind to the port\n");
     }
 
-    app_settings->server_addr.sin_family = AF_INET;
-    app_settings->server_addr.sin_port = port;
-    app_settings->server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     dc_network_bind(env, err, app_settings->udp_server_socket_fd,
-                    (struct sockaddr *)&app_settings->server_addr, port);
+                    app_settings->udp_address->ai_addr, port);
     if (dc_error_has_error(err))
     {
         printf("UDP Couldn't bind to the port\n");
@@ -373,7 +385,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
     ret_val = false;
 
     printf("accepting\n");
-    *client_socket_fd = dc_network_accept(env, err, app_settings->tcp_server_socket_fd);
+//    *client_socket_fd = dc_network_accept(env, err, app_settings->tcp_server_socket_fd);
     printf("accepted\n");
 
     if (dc_error_has_error(err))
@@ -386,6 +398,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
     }
     else
     {
+//        echo(env, err, *client_socket_fd);
 //        dc_read(env, err, app_settings->tcp_server_socket_fd, message, buf_size);
 //        printf("%s\n", message);
         // read initial tcp message and fill out a struct with its data
@@ -398,7 +411,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
         int out_fd;
         char s[100];
 
-        out_fd = dc_open(env, err, "./log.txt", DC_O_WRONLY | DC_O_APPEND | DC_O_CREAT, 0777);
+        out_fd = dc_open(env, err, "./log.csv", DC_O_WRONLY | DC_O_APPEND | DC_O_CREAT, 0777);
 
         while ((dc_recvfrom(env, err, app_settings->udp_server_socket_fd,
                            message, buf_size, 0, &client_addr, &client_addr_len)
@@ -408,12 +421,13 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
             char address[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &addr_in->sin_addr, address, sizeof(address));
             uint16_t port = htons (addr_in->sin_port);
-            sprintf(s, "%s %s %u\n", message, address, port);
+            sprintf(s, "%s,%s,%u\n", message, address, port);
 
             dc_write(env, err, out_fd, s, strlen(s));
             dc_write(env, err, fileno(stdout), s, strlen(s));
         }
     }
+
     printf("done");
     return ret_val;
 }
