@@ -335,7 +335,7 @@ static void do_set_sockopts(const struct dc_posix_env *env,
 
     DC_TRACE(env);
     app_settings = arg;
-    reuse_address = false;
+    reuse_address = true;
 
     dc_network_opt_ip_so_reuse_addr(env, err, app_settings->tcp_server_socket_fd,
                                     reuse_address);
@@ -424,7 +424,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
     }
     else
     {
-
+        echo(env, err, *client_socket_fd);
         struct sockaddr client_addr;
         socklen_t client_addr_len;
         ssize_t nread;
@@ -455,6 +455,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
     dc_error_reset(err);
     printf("done. exiting. 'resource temporarily unavailable' error below is expected due to timeout\n");
 
+    exit_signal = 1;
     ret_val = true;
     return ret_val;
 }

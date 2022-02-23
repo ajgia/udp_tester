@@ -292,12 +292,16 @@ static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_a
         return -1;
     }
 
+    if (wait_for_start(env, err, &client) == ERROR)
+    {
+        return EXIT_FAILURE;
+    }
+
     static struct dc_fsm_transition transitions[] = {
             {DC_FSM_INIT, START_THREADS, start_threads},
             {START_THREADS, OPEN_TCP_CONNECTION, open_tcp_connection},
             {OPEN_TCP_CONNECTION, OPEN_UDP_CONNECTION, open_udp_connection},
-            {OPEN_UDP_CONNECTION, WAIT_FOR_START, wait_for_start},
-            {WAIT_FOR_START, SEND_INITIAL_MESSAGE, send_initial_message},
+            {OPEN_UDP_CONNECTION, SEND_INITIAL_MESSAGE, send_initial_message},
             {SEND_INITIAL_MESSAGE, DO_TRAN, do_tran},
             {DO_TRAN, SEND_CLOSING_MESSAGE, send_closing_message},
             {SEND_CLOSING_MESSAGE, EXIT, do_exit},
@@ -490,14 +494,14 @@ static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, 
         time_t now_t;
         const char *client_time = dc_setting_string_get(env, client->app_settings->time);
 
-
         // calculate current time
         now_t = time(NULL);
         now_tm = localtime(&now_t);
         if (dc_error_has_no_error(err))
         {
             // calculate client start time
-            client_tm = localtime(&now_t);
+            client_t = time(NULL);
+            client_tm = localtime(&client_t);
 
             if (strptime(client_time, "%H:%M", &tmp) == NULL)
             {
@@ -514,17 +518,37 @@ static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, 
             uintmax_t seconds = (uintmax_t)client_t - (uintmax_t)now_t;
 
             printf("seconds to wait: %ju\n", seconds);
-            // max wait time 10 minutes
+
+            now_t = time(NULL);
+            now_tm = localtime(&now_t);
             if (seconds < 0 || seconds > 600)
             {
                 printf("pick a time within 10 minutes. exiting\n");
                 ret_val = ERROR;
+                return ret_val;
             }
             else
             {
-
-                sleep((unsigned)seconds);
+                sleep(seconds);
             }
+//            while (seconds >= 0)
+//            {
+//                uintmax_t seconds = (uintmax_t)client_t - (uintmax_t)now_t;
+//                printf("%u\n", seconds);
+//                now_t = time(NULL);
+//                now_tm = localtime(&now_t);
+//            }
+            // max wait time 10 minutes
+//            if (seconds < 0 || seconds > 600)
+//            {
+//                printf("pick a time within 10 minutes. exiting\n");
+//                ret_val = ERROR;
+//            }
+//            else
+//            {
+//                printf("waiting\n");
+//
+//            }
         }
     }
     else
