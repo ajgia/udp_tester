@@ -61,7 +61,7 @@ def findMinOfSequence(list, n):
 
 
 # Import data and name columns
-data = pd.read_csv('../log.csv', header=None)
+data = pd.read_csv('./log.csv', header=None)
 data.columns = ['packet_id', 'max_packets', 'ip', 'port']
 
 # split data by client (same IP + same Port)
