@@ -23,6 +23,7 @@
 #include <dc_posix/dc_unistd.h>
 #include <dc_posix/dc_time.h>
 #include <dc_network/common.h>
+#include <sys/time.h>
 
 #include "common.h"
 

@@ -24,6 +24,7 @@
 #include <dc_util/dump.h>
 #include <dc_util/streams.h>
 #include <dc_util/types.h>
+#include <sys/time.h>
 
 #include <getopt.h>
 #include <arpa/inet.h>
