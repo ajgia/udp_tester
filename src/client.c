@@ -295,9 +295,9 @@ static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_a
             {DC_FSM_INIT, START_THREADS, start_threads},
             {START_THREADS, OPEN_TCP_CONNECTION, open_tcp_connection},
             {OPEN_TCP_CONNECTION, OPEN_UDP_CONNECTION, open_udp_connection},
-            {OPEN_UDP_CONNECTION, SEND_INITIAL_MESSAGE, send_initial_message},
-            {SEND_INITIAL_MESSAGE, WAIT_FOR_START, wait_for_start},
-            {WAIT_FOR_START, DO_TRAN, do_tran},
+            {OPEN_UDP_CONNECTION, WAIT_FOR_START, wait_for_start},
+            {WAIT_FOR_START, SEND_INITIAL_MESSAGE, send_initial_message},
+            {SEND_INITIAL_MESSAGE, DO_TRAN, do_tran},
             {DO_TRAN, SEND_CLOSING_MESSAGE, send_closing_message},
             {SEND_CLOSING_MESSAGE, EXIT, do_exit},
             {EXIT, DC_FSM_EXIT, NULL},
@@ -345,11 +345,7 @@ static int start_threads(const struct dc_posix_env *env, struct dc_error *err, v
 
 static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
-
-    return OPEN_UDP_CONNECTION;
-
     struct client *client;
-    int next_state;
     const char *hostname;
     int ret_val;
 
@@ -412,8 +408,6 @@ static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *
                 // bind tcp_address (port) to socket
                 dc_connect(env, err, client->tcp_socket_fd, sockaddr, sockaddr_size);
                 // go to next state
-                next_state = SEND_INITIAL_MESSAGE;
-                return next_state;
             }
         }
     }
@@ -425,36 +419,56 @@ static int open_tcp_connection(const struct dc_posix_env *env, struct dc_error *
     return ret_val;
 }
 
-static int send_initial_message(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static int open_udp_connection(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
-    return WAIT_FOR_START;
-
     struct client *client;
-    const char *time;
-    uint16_t num_packets;
-    uint16_t size_packets;
-    uint16_t delay;
-    const size_t max = 5000;
-    char buf[max];
+    const char *hostname;
+    int socket_fd;
+    uint8_t family;
+    int sock_type;
+    uint16_t port;
     int ret_val;
 
     client = (struct client *) arg;
     ret_val = WAIT_FOR_START;
+    family = AF_INET;
+    sock_type = SOCK_DGRAM;
+    hostname = dc_setting_string_get(env, client->app_settings->server_ip);
+    port = dc_setting_uint16_get(env, client->app_settings->server_port);
+    uint16_t udp_port = port + 1;
 
-    time = dc_setting_string_get(env, client->app_settings->time);
-    num_packets = dc_setting_uint16_get(env, client->app_settings->num_packets);
-    size_packets = dc_setting_uint16_get(env, client->app_settings->size_packet);
-    delay = dc_setting_uint16_get(env, client->app_settings->delay);
+    dc_network_get_addresses(env, err, family, sock_type, hostname,
+                             &client->udp_result);
+    if (dc_error_has_no_error(err))
+    {
+        //    socket_fd = dc_network_create_socket(env, err, client->udp_result);
+        socket_fd = dc_socket(env, err, family, sock_type, 0);
 
-    // write message containing time, num packets, size of packets, and delay
-    snprintf(buf, max - 1, "%s %u %u %u ", time, num_packets, size_packets, delay);
+        if (dc_error_has_no_error(err))
+        {
+            client->udp_socket_fd = socket_fd;
+            if(dc_error_has_no_error(err))
+            {
+                struct sockaddr_in *sockaddr;
 
-    dc_write(env, err, client->tcp_socket_fd, buf, dc_strlen(env, buf));
+                sockaddr = dc_calloc(env, err, 1, sizeof(struct sockaddr));
+                sockaddr->sin_family = family;
+                sockaddr->sin_port = htons(udp_port);
+                sockaddr->sin_addr.s_addr = inet_addr(hostname);
 
+                client->server_addr = (struct sockaddr *)sockaddr;
+            }
+        }
+        else
+        {
+            client->udp_socket_fd = -1;
+        }
+    }
     if (dc_error_has_error(err))
     {
         ret_val = ERROR;
     }
+
     return ret_val;
 }
 
@@ -464,7 +478,7 @@ static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, 
     int ret_val;
 
     client = (struct client *) arg;
-    ret_val = DO_TRAN;
+    ret_val = SEND_INITIAL_MESSAGE;
 
     if (dc_setting_string_get(env, client->app_settings->time))
     {
@@ -512,6 +526,10 @@ static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, 
             }
         }
     }
+    else
+    {
+        printf("no wait\n");
+    }
 
     if (dc_error_has_error(err))
     {
@@ -520,55 +538,34 @@ static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, 
     return ret_val;
 }
 
-static int open_udp_connection(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static int send_initial_message(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client;
-    const char *hostname;
-    int socket_fd;
-    uint8_t family;
-    int sock_type;
-    uint16_t port;
+    const char *time;
+    uint16_t num_packets;
+    uint16_t size_packets;
+    uint16_t delay;
+    const size_t max = 500;
+    char buf[max];
     int ret_val;
 
     client = (struct client *) arg;
-    ret_val = SEND_INITIAL_MESSAGE;
-    family = AF_INET;
-    sock_type = SOCK_DGRAM;
-    hostname = dc_setting_string_get(env, client->app_settings->server_ip);
-    port = dc_setting_uint16_get(env, client->app_settings->server_port);
+    ret_val = DO_TRAN;
 
-    dc_network_get_addresses(env, err, family, sock_type, hostname,
-                             &client->udp_result);
-    if (dc_error_has_no_error(err))
-    {
-        //    socket_fd = dc_network_create_socket(env, err, client->udp_result);
-        socket_fd = dc_socket(env, err, family, sock_type, 0);
+    time = dc_setting_string_get(env, client->app_settings->time);
+    num_packets = dc_setting_uint16_get(env, client->app_settings->num_packets);
+    size_packets = dc_setting_uint16_get(env, client->app_settings->size_packet);
+    delay = dc_setting_uint16_get(env, client->app_settings->delay);
 
-        if (dc_error_has_no_error(err))
-        {
-            client->udp_socket_fd = socket_fd;
-            if(dc_error_has_no_error(err))
-            {
-                struct sockaddr_in *sockaddr;
+    // write message containing time, num packets, size of packets, and delay
+    snprintf(buf, max - 1, "%s %u %u %u ", time, num_packets, size_packets, delay);
 
-                sockaddr = dc_calloc(env, err, 1, sizeof(struct sockaddr));
-                sockaddr->sin_family = family;
-                sockaddr->sin_port = htons(port);
-                sockaddr->sin_addr.s_addr = inet_addr(hostname);
+    dc_write(env, err, client->tcp_socket_fd, buf, dc_strlen(env, buf));
 
-                client->server_addr = (struct sockaddr *)sockaddr;
-            }
-        }
-        else
-        {
-            client->udp_socket_fd = -1;
-        }
-    }
     if (dc_error_has_error(err))
     {
         ret_val = ERROR;
     }
-
     return ret_val;
 }
 
@@ -602,7 +599,12 @@ static int do_tran(const struct dc_posix_env *env, struct dc_error *err, void *a
         if (dc_error_has_no_error(err))
         {
             sprintf(msg, "%zu,%zu", i, num_packets);
+            printf("%s\n", msg);
             dc_sendto(env, err, client->udp_socket_fd, msg, size_packet, 0, client->server_addr, sizeof(*client->server_addr));
+            if (dc_error_has_error(err))
+            {
+                printf("error here\n");
+            }
             if (dc_error_has_no_error(err))
             {
                 dc_nanosleep(env, err, &delay, NULL);
@@ -643,7 +645,7 @@ static int do_exit(const struct dc_posix_env *env, struct dc_error *err, void *a
     client = (struct client *) arg;
 
 //    dc_close(env, err, client->tcp_socket_fd);
-    dc_close(env, err, client->udp_socket_fd);
+//    dc_close(env, err, client->udp_socket_fd);
 
     // TODO: free allocated memory
 //    dc_freeaddrinfo(env, client->tcp_result);

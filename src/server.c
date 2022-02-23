@@ -119,7 +119,7 @@ static struct dc_application_settings *create_settings(const struct dc_posix_env
     struct application_settings *settings;
 
     static const uint16_t default_port = DEFAULT_UDP_TESTER_PORT;
-    static const char *default_hostname = "localhost";
+    static const char *default_hostname = "127.0.0.1";
 
     DC_TRACE(env);
     settings = dc_malloc(env, err, sizeof(struct application_settings));
@@ -284,7 +284,6 @@ static void do_create_settings(const struct dc_posix_env *env,
 
     family = AF_INET;
     hostname = dc_setting_string_get(env, app_settings->server_ip);
-    printf("%s\n", hostname);
 
     dc_network_get_addresses(env, err, family, SOCK_STREAM, hostname,
                              &app_settings->tcp_address);
@@ -310,8 +309,10 @@ static void do_create_socket(const struct dc_posix_env *env,
     }
     else
     {
+
         app_settings->tcp_server_socket_fd = -1;
     }
+    printf("tcp socket: %d\n", app_settings->tcp_server_socket_fd);
 
     udp_socket_fd = dc_network_create_socket(env, err, app_settings->udp_address);
     if (dc_error_has_no_error(err))
@@ -339,6 +340,15 @@ static void do_set_sockopts(const struct dc_posix_env *env,
                                     reuse_address);
     dc_network_opt_ip_so_reuse_addr(env, err, app_settings->udp_server_socket_fd,
                                     reuse_address);
+
+    // set timeout for udp
+    struct timeval tv;
+    tv.tv_sec = 30;
+    tv.tv_usec = 0;
+    if (dc_setsockopt(env, err, app_settings->udp_server_socket_fd, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv)) < 0)
+    {
+        perror("Error setting timeout\n");
+    }
 }
 
 static void do_bind(const struct dc_posix_env *env, struct dc_error *err,
@@ -360,7 +370,7 @@ static void do_bind(const struct dc_posix_env *env, struct dc_error *err,
     }
 
     dc_network_bind(env, err, app_settings->udp_server_socket_fd,
-                    app_settings->udp_address->ai_addr, port);
+                    app_settings->udp_address->ai_addr, port + 1);
     if (dc_error_has_error(err))
     {
         printf("UDP Couldn't bind to the port\n");
@@ -400,7 +410,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
     ret_val = false;
 
     printf("accepting\n");
-//    *client_socket_fd = dc_network_accept(env, err, app_settings->tcp_server_socket_fd);
+    *client_socket_fd = dc_network_accept(env, err, app_settings->tcp_server_socket_fd);
     printf("accepted\n");
 
     if (dc_error_has_error(err))
@@ -413,12 +423,6 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
     }
     else
     {
-//        echo(env, err, *client_socket_fd);
-//        dc_read(env, err, app_settings->tcp_server_socket_fd, message, buf_size);
-//        printf("%s\n", message);
-        // read initial tcp message and fill out a struct with its data
-        // read udp messages until receiving closing tcp message
-        // write to file when receiving each udp message
 
         struct sockaddr client_addr;
         socklen_t client_addr_len;
@@ -426,11 +430,15 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
         int out_fd;
         char s[100];
 
-        out_fd = dc_open(env, err, "./log.csv", DC_O_WRONLY | DC_O_APPEND | DC_O_CREAT, 0777);
+        out_fd = dc_open(env, err, "./log.csv", DC_O_WRONLY | DC_O_TRUNC | DC_O_CREAT, 0777);
+        if (dc_error_has_error(err))
+        {
+            fprintf(stderr, "%s\n", err->message);
+        }
 
         while ((dc_recvfrom(env, err, app_settings->udp_server_socket_fd,
-                           message, buf_size, 0, &client_addr, &client_addr_len)
-                ) > 0 && dc_error_has_no_error(err) )
+                            message, buf_size, 0, &client_addr, &client_addr_len)
+               ) > 0 && dc_error_has_no_error(err) )
         {
             struct sockaddr_in *addr_in = (struct sockaddr_in *) &client_addr;
             char address[INET_ADDRSTRLEN];
@@ -440,10 +448,13 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
 
             dc_write(env, err, out_fd, s, strlen(s));
             dc_write(env, err, fileno(stdout), s, strlen(s));
+            dc_error_reset(err);
         }
     }
+    dc_error_reset(err);
+    printf("done. exiting. 'resource temporarily unavailable' error below is expected due to timeout\n");
 
-    printf("done\n");
+    ret_val = true;
     return ret_val;
 }
 
