@@ -485,69 +485,54 @@ static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, 
 
     if (dc_setting_string_get(env, client->app_settings->time))
     {
-        struct tm *client_tm;
+        struct tm client_tm;
         struct tm *now_tm;
         struct tm tmp;
         time_t client_t;
         time_t now_t;
-        const char *client_time = dc_setting_string_get(env, client->app_settings->time);
+        const char *client_time_setting = dc_setting_string_get(env, client->app_settings->time);
+        struct timespec tp_now;
+        struct timespec tp_then;
 
-        // calculate current time
+        // get general current time
         now_t = time(NULL);
         now_tm = localtime(&now_t);
-        if (dc_error_has_no_error(err))
+
+        // get nanosecond current time
+        clock_gettime(CLOCK_REALTIME, &tp_now);
+
+        // copy times over
+        memcpy(&tp_then, &tp_now, sizeof(struct timespec));
+        memset(&tmp, 0, sizeof(tmp));
+        memcpy(&client_tm, now_tm, sizeof(struct tm));
+
+        if (strptime(client_time_setting, "%H:%M", &client_tm) == NULL)
         {
-            // calculate client start time
-            client_t = time(NULL);
-            client_tm = localtime(&client_t);
-
-            if (strptime(client_time, "%H:%M", &tmp) == NULL)
-            {
-                ret_val = ERROR;
-                dc_error_errno(err, "client.c", "wait_for_start", 459, ENOENT);
-                return ret_val;
-            }
-            client_tm->tm_hour = tmp.tm_hour;
-            client_tm->tm_min = tmp.tm_min;
-
-
-            client_t = mktime(client_tm);
-
-            uintmax_t seconds = (uintmax_t)client_t - (uintmax_t)now_t;
-
-            printf("seconds to wait: %ju\n", seconds);
-
-            now_t = time(NULL);
-            now_tm = localtime(&now_t);
-            if (seconds < 0 || seconds > 600)
-            {
-                fprintf(stderr, "pick a time within 10 minutes. exiting\n");
-                ret_val = ERROR;
-                return ret_val;
-            }
-            else
-            {
-                sleep(seconds);
-            }
-//            while (seconds >= 0)
-//            {
-//                uintmax_t seconds = (uintmax_t)client_t - (uintmax_t)now_t;
-//                printf("%u\n", seconds);
-//                now_t = time(NULL);
-//                now_tm = localtime(&now_t);
-//            }
-            // max wait time 10 minutes
-//            if (seconds < 0 || seconds > 600)
-//            {
-//                printf("pick a time within 10 minutes. exiting\n");
-//                ret_val = ERROR;
-//            }
-//            else
-//            {
-//                printf("waiting\n");
-//
-//            }
+            ret_val = ERROR;
+            dc_error_errno(err, "client.c", "wait_for_start", 459, ENOENT);
+            return ret_val;
         }
+
+        client_tm.tm_sec = 0;
+
+        client_t = mktime(&client_tm);
+
+        uintmax_t seconds = (uintmax_t)client_t - (uintmax_t)now_t;
+
+        printf("seconds to wait: %ju\n", seconds);
+
+        if (seconds < 0 || seconds > 600)
+        {
+            fprintf(stderr, "pick a time within 10 minutes. exiting\n");
+            ret_val = ERROR;
+            return ret_val;
+        }
+        else
+        {
+            sleep(seconds);
+        }
+
+
     }
 
     if (dc_error_has_error(err))
@@ -605,9 +590,11 @@ static int do_tran(const struct dc_posix_env *env, struct dc_error *err, void *a
     num_packets = dc_setting_uint16_get(env, client->app_settings->num_packets);
     size_packet = dc_setting_uint16_get(env, client->app_settings->size_packet);
     delay_milliseconds = dc_setting_uint16_get(env, client->app_settings->delay);
-    delay.tv_nsec = (long)delay_milliseconds * 100000;
-    delay.tv_sec = 0;
 
+    long delay_seconds = (long)delay_milliseconds / 1000;
+    long delay_nanoseconds = ((long)delay_milliseconds % 1000 ) * 1000000;
+    delay.tv_nsec = delay_nanoseconds;
+    delay.tv_sec = delay_seconds;
     char msg[size_packet];
 
     // write messages on delay

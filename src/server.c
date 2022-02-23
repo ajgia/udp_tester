@@ -423,10 +423,8 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
     }
     else
     {
-//        echo(env, err, *client_socket_fd);
         struct sockaddr client_addr;
         socklen_t client_addr_len;
-        ssize_t nread;
         int out_fd;
         char s[100];
 
@@ -447,11 +445,8 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
             sprintf(s, "%s,%s,%u\n", message, address, port);
 
             dc_write(env, err, out_fd, s, strlen(s));
-            dc_write(env, err, fileno(stdout), s, strlen(s));
-            dc_error_reset(err);
         }
     }
-    dc_error_reset(err);
     printf("done. exiting. 'resource temporarily unavailable' error below is expected due to timeout\n");
 
     exit_signal = 1;
