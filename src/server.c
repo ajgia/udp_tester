@@ -313,7 +313,6 @@ static void do_create_socket(const struct dc_posix_env *env,
 
         app_settings->tcp_server_socket_fd = -1;
     }
-    printf("tcp socket: %d\n", app_settings->tcp_server_socket_fd);
 
     udp_socket_fd = dc_network_create_socket(env, err, app_settings->udp_address);
     if (dc_error_has_no_error(err))

@@ -316,7 +316,7 @@ static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_a
     ret_val = EXIT_SUCCESS;
     fsm_info = dc_fsm_info_create(env, err, "udp_tester_client");
 //    dc_fsm_info_set_will_change_state(fsm_info, will_change_state);
-    dc_fsm_info_set_did_change_state(fsm_info, did_change_state);
+//    dc_fsm_info_set_did_change_state(fsm_info, did_change_state);
     dc_fsm_info_set_bad_change_state(fsm_info, bad_change_state);
 
     if(dc_error_has_no_error(err))
@@ -549,10 +549,6 @@ static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, 
 //            }
         }
     }
-    else
-    {
-        printf("no wait\n");
-    }
 
     if (dc_error_has_error(err))
     {
@@ -609,7 +605,7 @@ static int do_tran(const struct dc_posix_env *env, struct dc_error *err, void *a
     num_packets = dc_setting_uint16_get(env, client->app_settings->num_packets);
     size_packet = dc_setting_uint16_get(env, client->app_settings->size_packet);
     delay_milliseconds = dc_setting_uint16_get(env, client->app_settings->delay);
-    delay.tv_nsec = (long)delay_milliseconds * 1000;
+    delay.tv_nsec = (long)delay_milliseconds * 100000;
     delay.tv_sec = 0;
 
     char msg[size_packet];
