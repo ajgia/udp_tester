@@ -57,7 +57,6 @@ enum application_states
     OPEN_TCP_CONNECTION,                // 3
     OPEN_UDP_CONNECTION,                // 4
     SEND_INITIAL_MESSAGE,               // 5
-    WAIT_FOR_START,                     // 6
     DO_TRAN,                            // 7
     SEND_CLOSING_MESSAGE,               // 8
     EXIT,                               // 9
@@ -309,7 +308,6 @@ static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_a
             {OPEN_TCP_CONNECTION, ERROR, handle_error},
             {OPEN_UDP_CONNECTION, ERROR, handle_error},
             {SEND_INITIAL_MESSAGE, ERROR, handle_error},
-            {WAIT_FOR_START, ERROR, handle_error},
             {DO_TRAN, ERROR, handle_error},
             {SEND_CLOSING_MESSAGE, ERROR, handle_error},
             {ERROR, EXIT, do_exit}
@@ -435,7 +433,7 @@ static int open_udp_connection(const struct dc_posix_env *env, struct dc_error *
     int ret_val;
 
     client = (struct client *) arg;
-    ret_val = WAIT_FOR_START;
+    ret_val = SEND_INITIAL_MESSAGE;
     family = AF_INET;
     sock_type = SOCK_DGRAM;
     hostname = dc_setting_string_get(env, client->app_settings->server_ip);
@@ -523,7 +521,7 @@ static int wait_for_start(const struct dc_posix_env *env, struct dc_error *err, 
             now_tm = localtime(&now_t);
             if (seconds < 0 || seconds > 600)
             {
-                printf("pick a time within 10 minutes. exiting\n");
+                fprintf(stderr, "pick a time within 10 minutes. exiting\n");
                 ret_val = ERROR;
                 return ret_val;
             }

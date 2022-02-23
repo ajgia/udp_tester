@@ -424,7 +424,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
     }
     else
     {
-        echo(env, err, *client_socket_fd);
+//        echo(env, err, *client_socket_fd);
         struct sockaddr client_addr;
         socklen_t client_addr_len;
         ssize_t nread;
